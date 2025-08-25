@@ -31,23 +31,134 @@ export default function Chat({ username }: ChatProps) {
 
   useEffect(() => {
     const wsUrl = 'ws://localhost:3001';
-    /*
-    *   Requirements:
-    *   - Create a new WebSocket connection using the wsUrl variable
-    *   - Add handling for the following events:
-    *     - onopen
-    *     - onclose
-    *     - onerror
-    *     - onmessage
-    *   - When a user sends a message, the system should broadcast the message to all connected users. (message type)
-    *   - When a user connects to the chat, the system should broadcast a message to all connected users. (announcement type)
-    *   - When a user disconnects from the chat, the system should broadcast a message to all connected users. (announcement type)
-    */
+    
+    // Create a new WebSocket connection
+    const newSocket = new WebSocket(wsUrl);
+    
+    // Handle connection open
+    newSocket.onopen = () => {
+      setIsConnected(true);
+      console.log('WebSocket connected');
+      
+      // Send join message to register username with the server
+      const joinMessage = {
+        type: 'join',
+        username: username
+      };
+      newSocket.send(JSON.stringify(joinMessage));
+      console.log(joinMessage);
+      
+      // Broadcast connection announcement to all users
+      const connectionMessage = {
+        id: Date.now(),
+        username: 'System',
+        message: `${username} has joined the chat`,
+        timestamp: new Date().toISOString(),
+        type: 'announcement' as const
+      };
+      
+      newSocket.send(JSON.stringify(connectionMessage));
+    };
+    
+    // Handle connection close
+    newSocket.onclose = () => {
+      setIsConnected(false);
+      console.log('WebSocket disconnected');
+      
+      // Broadcast disconnection announcement to all users
+      const disconnectionMessage = {
+        id: Date.now(),
+        username: 'System',
+        message: `${username} has left the chat`,
+        timestamp: new Date().toISOString(),
+        type: 'announcement' as const
+      };
+      
+      // Try to send the disconnection message before closing
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.send(JSON.stringify(disconnectionMessage));
+      }
+    };
+    
+    // Handle connection errors
+    newSocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setIsConnected(false);
+    };
+    
+    // Handle incoming messages
+    newSocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle different message types from server
+        let processedMessage: Message;
+        
+        if (data.type === 'userJoined') {
+          processedMessage = {
+            id: Date.now(),
+            username: 'System',
+            message: `${data.username} has joined the chat`,
+            timestamp: new Date().toISOString(),
+            type: 'announcement'
+          };
+        } else if (data.type === 'userLeft') {
+          processedMessage = {
+            id: Date.now(),
+            username: 'System',
+            message: `${data.username} has left the chat`,
+            timestamp: new Date().toISOString(),
+            type: 'announcement'
+          };
+        } else {
+          // Regular message or announcement
+          processedMessage = {
+            id: data.id || Date.now(),
+            username: data.username || 'Unknown',
+            message: data.message || '',
+            timestamp: data.timestamp || new Date().toISOString(),
+            type: data.type || 'message'
+          };
+        }
+        
+        setMessages(prev => [...prev, processedMessage]);
+      } catch (error) {
+        console.error('Error parsing message:', error);
+      }
+    };
+    
+    // Store the socket in state
+    setSocket(newSocket);
+    
+    // Cleanup function to close the connection when component unmounts
+    return () => {
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close();
+      }
+    };
   }, [username]);
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement sendMessage function
+    
+    if (!newMessage.trim() || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    
+    // Create message object
+    const messageData = {
+      id: Date.now(),
+      username: username,
+      message: newMessage.trim(),
+      timestamp: new Date().toISOString(),
+      type: 'message' as const
+    };
+    
+    // Send message through WebSocket
+    socket.send(JSON.stringify(messageData));
+    
+    // Clear the input field
+    setNewMessage('');
   };
 
   const formatTime = (timestamp: string) => {
