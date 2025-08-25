@@ -47,37 +47,12 @@ export default function Chat({ username }: ChatProps) {
       };
       newSocket.send(JSON.stringify(joinMessage));
       console.log(joinMessage);
-      
-      // Broadcast connection announcement to all users
-      const connectionMessage = {
-        id: Date.now(),
-        username: 'System',
-        message: `${username} has joined the chat`,
-        timestamp: new Date().toISOString(),
-        type: 'announcement' as const
-      };
-      
-      newSocket.send(JSON.stringify(connectionMessage));
     };
     
     // Handle connection close
     newSocket.onclose = () => {
       setIsConnected(false);
       console.log('WebSocket disconnected');
-      
-      // Broadcast disconnection announcement to all users
-      const disconnectionMessage = {
-        id: Date.now(),
-        username: 'System',
-        message: `${username} has left the chat`,
-        timestamp: new Date().toISOString(),
-        type: 'announcement' as const
-      };
-      
-      // Try to send the disconnection message before closing
-      if (newSocket.readyState === WebSocket.OPEN) {
-        newSocket.send(JSON.stringify(disconnectionMessage));
-      }
     };
     
     // Handle connection errors
